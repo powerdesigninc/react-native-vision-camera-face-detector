@@ -3,7 +3,6 @@ import {
   Camera as VisionCamera,
   // runAsync,
   useFrameProcessor,
-  useSkiaFrameProcessor
 } from 'react-native-vision-camera'
 import {
   Worklets,
@@ -182,41 +181,12 @@ export const Camera = React.forwardRef( ( {
   }
 
   /**
-   * Skia frame processor
-   */
-  const skiaFrameProcessor = useSkiaFrameProcessor( ( frame ) => {
-    'worklet'
-    frame.render()
-    skiaActions!( JSON.parse(
-      faces.value
-    ), frame )
-    runAsync( frame )
-  }, [
-    runOnAsyncContext,
-    skiaActions
-  ] )
-
-  /**
    * Default frame processor
    */
   const cameraFrameProcessor = useFrameProcessor( ( frame ) => {
     'worklet'
     runAsync( frame )
   }, [ runOnAsyncContext ] )
-
-  /**
-   * Camera frame processor
-   */
-  const frameProcessor = ( () => {
-    const { autoMode } = faceDetectionOptions ?? {}
-
-    if (
-      !autoMode &&
-      !!skiaActions
-    ) return skiaFrameProcessor
-
-    return cameraFrameProcessor
-  } )()
 
   //
   // use bellow when vision-camera's  
@@ -243,7 +213,7 @@ export const Camera = React.forwardRef( ( {
   return <VisionCamera
     { ...props }
     ref={ ref }
-    frameProcessor={ frameProcessor }
+    frameProcessor={ cameraFrameProcessor }
     pixelFormat='yuv'
   />
 } )
