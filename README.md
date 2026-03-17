@@ -1,8 +1,12 @@
 ## 📚 Introduction
 
-`react-native-vision-camera-face-detector` is a React Native library that integrates with the Vision Camera module to provide face detection functionality. It allows you to easily detect faces in real-time using device's front and back camera.
+`react-native-vision-camera-face-detector` is a React Native library that integrates with the Vision Camera module to provide face detection functionality. It allows you to easily detect faces in real-time using device's front/back camera. Also supports static image face detections (thanks to @XChikuX).
 
-If you like this package please give it a ⭐ on [GitHub](https://github.com/luicfrr/react-native-vision-camera-face-detector).
+Is this package usefull to you?
+
+<a href="https://www.buymeacoffee.com/luicfrr" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+
+Or give it a ⭐ on [GitHub](https://github.com/luicfrr/react-native-vision-camera-face-detector).
 
 ## 🏗️ Features
 
@@ -92,7 +96,9 @@ Or use it following [vision-camera docs](https://react-native-vision-camera.com/
 import { 
   StyleSheet, 
   Text, 
-  View 
+  View,
+  NativeModules,
+  Platform
 } from 'react-native'
 import { 
   useEffect, 
@@ -118,9 +124,25 @@ export default function App() {
   } ).current
 
   const device = useCameraDevice('front')
-  const { detectFaces } = useFaceDetector( faceDetectionOptions )
+  const { 
+    detectFaces,
+    stopListeners
+  } = useFaceDetector( faceDetectionOptions )
+
+  useEffect( () => {
+    return () => {
+      // you must call `stopListeners` when current component is unmounted
+      stopListeners()
+    }
+  }, [] )
 
   useEffect(() => {
+    if(!device) {
+      // you must call `stopListeners` when `Camera` component is unmounted
+      stopListeners()
+      return
+    }
+
     (async () => {
       const status = await Camera.requestCameraPermission()
       console.log({ status })
@@ -164,8 +186,49 @@ export default function App() {
 As face detection is a heavy process you should run it in an asynchronous thread so it can be finished without blocking your camera preview.
 You should read `vision-camera` [docs](https://react-native-vision-camera.com/docs/guides/frame-processors-interacting#running-asynchronously) about this feature.
 
+## 🖼️ Static Image Face Detection
+
+You can detect faces in static images without the camera (picking images from your gallery/files) or you can use it to detect faces in photos taken from camera (see [Example App](https://github.com/luicfrr/react-native-vision-camera-face-detector/blob/main/example/src/index.tsx)):
+
+Supported image sources: 
+- Requirings (`require('path/to/file')`)
+- URI string (`file://`, `content://`, `http(s)://`)
+- Object (`{ uri: string }`)
+
+```ts
+import { 
+  detectFaces,
+  ImageFaceDetectionOptions
+} from 'react-native-vision-camera-face-detector'
+
+const detectionOptions: ImageFaceDetectionOptions = {
+  // detection options
+}
+// Using a bundled asset
+const faces1 = await detectFaces({
+  image: require('./assets/photo.jpg'),
+  options: detectionOptions
+})
+// Using a local file path or content URI (e.g. from an image picker)
+const faces2 = await detectFaces({
+  image: 'file:///storage/emulated/0/Download/pic.jpg',
+  options: detectionOptions
+})
+const faces3 = await detectFaces({
+  image: { uri: 'content://media/external/images/media/12345' },
+  options: detectionOptions
+})
+
+console.log({ 
+  faces1, 
+  faces2, 
+  faces3 
+})
+```
+
 ## Face Detection Options
 
+#### Common (Frame Processor and Static Images)
 | Option  | Description | Default | Options |
 | ------------- | ------------- | ------------- | ------------- |
 | `performanceMode` | Favor speed or accuracy when detecting faces.  | `fast` | `fast`, `accurate`|
@@ -174,10 +237,20 @@ You should read `vision-camera` [docs](https://react-native-vision-camera.com/do
 | `classificationMode` | Whether or not to classify faces into categories such as 'smiling', and 'eyes open'. | `none` | `none`, `all` |
 | `minFaceSize` | Sets the smallest desired face size, expressed as the ratio of the width of the head to width of the image. | `0.15` | `number` |
 | `trackingEnabled` | Whether or not to assign faces an ID, which can be used to track faces across images. Note that when contour detection is enabled, only one face is detected, so face tracking doesn't produce useful results. For this reason, and to improve detection speed, don't enable both contour detection and face tracking. | `false` | `boolean` |
+
+
+#### Frame Processor
+| Option  | Description | Default | Options |
+| ------------- | ------------- | ------------- | ------------- |
+| `cameraFacing` | Current active camera | `front` | `front`, `back` |
 | `autoMode` | Should handle auto scale (face bounds, contour and landmarks) and rotation on native side? If this option is disabled all detection results will be relative to frame coordinates, not to screen/preview. You shouldn't use this option if you want to draw on screen using `Skia Frame Processor`. See [this](https://github.com/luicfrr/react-native-vision-camera-face-detector/issues/30#issuecomment-2058805546) and [this](https://github.com/luicfrr/react-native-vision-camera-face-detector/issues/35) for more details. | `false` | `boolean` |
 | `windowWidth` | * Required if you want to use `autoMode`. You must handle your own logic to get screen sizes, with or without statusbar size, etc... | `1.0` | `number` |
 | `windowHeight` | * Required if you want to use `autoMode`. You must handle your own logic to get screen sizes, with or without statusbar size, etc... | `1.0` | `number` |
-| `cameraFacing` | Current active camera | `front` | `front`, `back` |
+
+#### Static Images
+| Option  | Description | Default | Options |
+| ------------- | ------------- | ------------- | ------------- |
+| `image` | Image source | - | `number`, `string`, `{ uri: string }` |
 
 ## 🔧 Troubleshooting
 
@@ -201,17 +274,18 @@ If you find other errors while using this package you're wellcome to open a new 
 
 This package was tested using the following:
 
-- `react-native`: `0.76.9` (new arch disabled)
-- `react-native-vision-camera`: `4.6.4`
-- `react-native-worklets-core`: `1.5.0`
-- `@shopify/react-native-skia`: `1.5.0`
-- `react-native-reanimated`: `~3.16.1`
-- `expo`: `^52`
+- `react-native`: `0.79.5` (new arch disabled)
+- `react-native-vision-camera`: `4.7.2`
+- `react-native-worklets-core`: `1.6.2`
+- `@shopify/react-native-skia`: `2.2.19`
+- `react-native-reanimated`: `~3.17.4`
+- `@react-native-firebase`: `^22.2.1`
+- `expo`: `^53`
 
 Min O.S version:
 
 - `Android`: `SDK 26` (Android 8)
-- `IOS`: `15.1`
+- `IOS`: `15.5`
 
 Make sure to follow tested versions and your device is using the minimum O.S version before opening issues.
 

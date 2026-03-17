@@ -1,5 +1,9 @@
 import { useMemo } from 'react'
 import {
+  Platform,
+  NativeModules
+} from 'react-native'
+import {
   VisionCameraProxy,
   type CameraPosition,
   type Frame
@@ -12,6 +16,13 @@ type FaceDetectorPlugin = {
    * @param {Frame} frame Frame to detect faces
    */
   detectFaces: ( frame: Frame ) => Face[]
+  /**
+   * Stop orientation listeners for Android.
+   * Does nothing for IOS.
+   * 
+   * @returns {void}
+   */
+  stopListeners: () => void
 }
 
 type Point = {
@@ -29,6 +40,7 @@ export interface Face {
   smilingProbability: number
   contours?: Contours
   landmarks?: Landmarks
+  trackingId?: number
 }
 
 export interface Bounds {
@@ -69,7 +81,7 @@ export interface Landmarks {
   RIGHT_EYE: Point
 }
 
-export interface FaceDetectionOptions {
+export interface CommonFaceDetectionOptions {
   /**
    * Favor speed or accuracy when detecting faces.
    *
@@ -113,6 +125,16 @@ export interface FaceDetectionOptions {
    * @default false
    */
   trackingEnabled?: boolean
+}
+
+export interface FrameFaceDetectionOptions
+  extends CommonFaceDetectionOptions {
+  /**
+   * Current active camera
+   * 
+   * @default front
+   */
+  cameraFacing?: CameraPosition
 
   /**
    * Should handle auto scale (face bounds, contour and landmarks) and rotation on native side? 
@@ -136,23 +158,16 @@ export interface FaceDetectionOptions {
    * @default 1.0
    */
   windowHeight?: number
-
-  /**
-   * Current active camera
-   * 
-   * @default front
-   */
-  cameraFacing?: CameraPosition
 }
 
 /**
  * Create a new instance of face detector plugin
  * 
- * @param {FaceDetectionOptions | undefined} options Detection options
+ * @param {FrameFaceDetectionOptions | undefined} options Detection options
  * @returns {FaceDetectorPlugin} Plugin instance
  */
 function createFaceDetectorPlugin(
-  options?: FaceDetectionOptions
+  options?: FrameFaceDetectionOptions
 ): FaceDetectorPlugin {
   const plugin = VisionCameraProxy.initFrameProcessorPlugin( 'detectFaces', {
     ...options
@@ -169,6 +184,12 @@ function createFaceDetectorPlugin(
       'worklet'
       // @ts-ignore
       return plugin.call( frame ) as Face[]
+    },
+    stopListeners: () => {
+      if ( Platform.OS !== 'android' ) return
+
+      const { VisionCameraFaceDetectorOrientationManager } = NativeModules
+      VisionCameraFaceDetectorOrientationManager?.stopDeviceOrientationListener()
     }
   }
 }
@@ -176,12 +197,12 @@ function createFaceDetectorPlugin(
 /**
  * Use an instance of face detector plugin.
  * 
- * @param {FaceDetectionOptions | undefined} options Detection options
+ * @param {FrameFaceDetectionOptions | undefined} options Detection options
  * @returns {FaceDetectorPlugin} Memoized plugin instance that will be 
  * destroyed once the component using `useFaceDetector()` unmounts.
  */
 export function useFaceDetector(
-  options?: FaceDetectionOptions
+  options?: FrameFaceDetectionOptions
 ): FaceDetectorPlugin {
   return useMemo( () => (
     createFaceDetectorPlugin( options )

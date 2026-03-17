@@ -1,4 +1,6 @@
-import React from 'react'
+import React, {
+  useEffect
+} from 'react'
 import {
   Camera as VisionCamera,
   // runAsync,
@@ -14,7 +16,7 @@ import { useFaceDetector } from './FaceDetector'
 // types
 import type {
   DependencyList,
-  ForwardedRef
+  RefObject
 } from 'react'
 import type {
   CameraProps,
@@ -24,7 +26,7 @@ import type {
 } from 'react-native-vision-camera'
 import type {
   Face,
-  FaceDetectionOptions
+  FrameFaceDetectionOptions
 } from './FaceDetector'
 
 type UseWorkletType = (
@@ -42,7 +44,8 @@ type CallbackType = (
 ) => void | Promise<void>
 
 type ComponentType = {
-  faceDetectionOptions?: FaceDetectionOptions
+  ref: RefObject<VisionCamera | null>
+  faceDetectionOptions?: FrameFaceDetectionOptions
   faceDetectionCallback: CallbackType
   skiaActions?: (
     faces: Face[],
@@ -93,20 +96,26 @@ function useRunInJS(
  * @param {ComponentType} props Camera + face detection props 
  * @returns 
  */
-export const Camera = React.forwardRef( ( {
+export function Camera( {
+  ref,
   faceDetectionOptions,
   faceDetectionCallback,
   skiaActions,
   ...props
-}: ComponentType,
-  ref: ForwardedRef<VisionCamera>
-) => {
-  const { detectFaces } = useFaceDetector( faceDetectionOptions )
+}: ComponentType ) {
   /** 
    * Is there an async task already running?
    */
   const isAsyncContextBusy = useSharedValue( false )
   const faces = useSharedValue<string>( '[]' )
+  const {
+    detectFaces,
+    stopListeners
+  } = useFaceDetector( faceDetectionOptions )
+
+  useEffect( () => {
+    return () => stopListeners()
+  }, [] )
 
   /** 
    * Throws logs/errors back on js thread
@@ -216,4 +225,4 @@ export const Camera = React.forwardRef( ( {
     frameProcessor={ cameraFrameProcessor }
     pixelFormat='yuv'
   />
-} )
+}

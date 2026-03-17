@@ -1,4 +1,5 @@
 import React, {
+  ReactNode,
   useEffect,
   useRef,
   useState
@@ -18,16 +19,18 @@ import {
   useCameraDevice,
   useCameraPermission
 } from 'react-native-vision-camera'
+import { launchImageLibraryAsync } from 'expo-image-picker'
 import { useIsFocused } from '@react-navigation/core'
 import { useAppState } from '@react-native-community/hooks'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { NavigationContainer } from '@react-navigation/native'
 import {
-  Camera,
   Face,
-  FaceDetectionOptions,
+  Camera,
   Contours,
-  Landmarks
+  Landmarks,
+  detectFaces,
+  FrameFaceDetectionOptions
 } from 'react-native-vision-camera-face-detector'
 import {
   ClipOp,
@@ -43,9 +46,9 @@ import Animated, {
 /**
  * Entry point component
  *
- * @return {JSX.Element} Component
+ * @return {ReactNode} Component
  */
-function Index(): JSX.Element {
+function Index(): ReactNode {
   return (
     <SafeAreaProvider>
       <NavigationContainer>
@@ -58,9 +61,9 @@ function Index(): JSX.Element {
 /**
  * Face detection component
  *
- * @return {JSX.Element} Component
+ * @return {ReactNode} Component
  */
-function FaceDetection(): JSX.Element {
+function FaceDetection(): ReactNode {
   const {
     width,
     height
@@ -85,7 +88,7 @@ function FaceDetection(): JSX.Element {
     cameraFacing,
     setCameraFacing
   ] = useState<CameraPosition>( 'front' )
-  const faceDetectionOptions = useRef<FaceDetectionOptions>( {
+  const faceDetectionOptions = useRef<FrameFaceDetectionOptions>( {
     performanceMode: 'fast',
     classificationMode: 'all',
     contourMode: 'all',
@@ -302,6 +305,44 @@ function FaceDetection(): JSX.Element {
     frame.drawRect( bounds, rectPaint )
   }
 
+  /**
+   * Detect faces from image
+   * 
+   * @returns {Promise<void>} Promise
+   */
+  async function detectFacesFromImage(): Promise<void> {
+    // No permissions request is necessary for launching the image library
+    let result = await launchImageLibraryAsync( {
+      mediaTypes: [ 'images' ],
+      allowsEditing: true,
+      aspect: [ 4, 3 ],
+      quality: 1
+    } )
+
+    if ( result.canceled ) return
+
+    const faces = await detectFaces( {
+      image: result.assets[ 0 ].uri
+    } )
+    console.log( 'image detected faces', faces )
+  }
+
+  /**
+   * Detect faces from photo
+   * 
+   * @returns {Promise<void>} Promise
+   */
+  async function detectFacesFromPhoto(): Promise<void> {
+    if ( !camera.current ) return
+    // take snapshot is faster than take photo 
+    // but it does not process captured image
+    const { path } = await camera.current?.takeSnapshot()
+    const faces = await detectFaces( {
+      image: `file://${ path }`
+    } )
+    console.log( 'photo detected faces', faces )
+  }
+
   return ( <>
     <View
       style={ [
@@ -378,6 +419,26 @@ function FaceDetection(): JSX.Element {
         flexDirection: 'column'
       } }
     >
+      <View
+        style={ {
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'space-around'
+        } }
+      >
+        <Button
+          onPress={ detectFacesFromImage }
+          title={ 'Detect from file' }
+        />
+
+        <Button
+          disabled={ !cameraMounted }
+          onPress={ detectFacesFromPhoto }
+          title={ 'Detect from photo' }
+        />
+      </View>
+
       <View
         style={ {
           width: '100%',
